@@ -16,7 +16,13 @@ export interface Applicant {
   id: string;
   name: string;
   email: string | null;
-  gpa: number;
+  gpa: number | null;
+  major: string | null;
+  expected_graduation: string | null;
+  why_hillside: string | null;
+  contribution: string | null;
+  vertical_interest: string | null;
+  linkedin_url: string | null;
   application_message: string | null;
   resume_path: string | null;
   status: ApplicantStatus;

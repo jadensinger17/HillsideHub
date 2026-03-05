@@ -33,16 +33,12 @@ export async function middleware(request: NextRequest) {
 
   const { pathname } = request.nextUrl;
 
-  // AUTH DISABLED FOR TESTING — re-enable before production
-  // if (!user && pathname.startsWith("/recruitment")) {
-  //   return NextResponse.redirect(new URL("/login", request.url));
-  // }
-  // if (!user && pathname.startsWith("/mid-semester")) {
-  //   return NextResponse.redirect(new URL("/login", request.url));
-  // }
-  // if (user && pathname === "/login") {
-  //   return NextResponse.redirect(new URL("/", request.url));
-  // }
+  if (!user && !pathname.startsWith("/auth") && pathname !== "/login") {
+    return NextResponse.redirect(new URL("/login", request.url));
+  }
+  if (user && pathname === "/login") {
+    return NextResponse.redirect(new URL("/", request.url));
+  }
 
   return supabaseResponse;
 }
