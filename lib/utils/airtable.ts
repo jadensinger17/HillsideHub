@@ -9,40 +9,63 @@ export interface AirtableRecord {
   fields: Record<string, unknown>;
 }
 
+// Simple in-memory cache to avoid hammering Airtable on every request
+let cachedRecords: AirtableRecord[] | null = null;
+let cacheTimestamp = 0;
+const CACHE_TTL = 5 * 60 * 1000; // 5 minutes
+
 export async function fetchPaperboyCompanies(): Promise<AirtableRecord[]> {
+  // Return cached data if fresh
+  if (cachedRecords && Date.now() - cacheTimestamp < CACHE_TTL) {
+    return cachedRecords;
+  }
+
   const apiKey = process.env.AIRTABLE_API_KEY;
-  if (!apiKey) throw new Error("AIRTABLE_API_KEY is not set");
+  if (!apiKey) {
+    console.error("AIRTABLE_API_KEY is not set");
+    return cachedRecords ?? [];
+  }
 
   const records: AirtableRecord[] = [];
   let offset: string | undefined;
 
-  do {
-    const url = new URL(`https://api.airtable.com/v0/${BASE_ID}/${TABLE_ID}`);
-    if (offset) url.searchParams.set("offset", offset);
+  try {
+    do {
+      const url = new URL(`https://api.airtable.com/v0/${BASE_ID}/${TABLE_ID}`);
+      if (offset) url.searchParams.set("offset", offset);
 
-    let res: Response | undefined;
-    for (let attempt = 0; attempt < 5; attempt++) {
-      res = await fetch(url.toString(), {
-        headers: { Authorization: `Bearer ${apiKey}` },
-        next: { revalidate: 300 },
-      });
-      if (res.status !== 429) break;
-      // Exponential backoff: 1s, 2s, 4s, 8s, 16s
-      await new Promise((r) => setTimeout(r, 1000 * Math.pow(2, attempt)));
-    }
+      let res: Response | undefined;
+      for (let attempt = 0; attempt < 5; attempt++) {
+        res = await fetch(url.toString(), {
+          headers: { Authorization: `Bearer ${apiKey}` },
+          cache: "no-store",
+        });
+        if (res.status !== 429) break;
+        // Exponential backoff: 2s, 4s, 8s, 16s, 32s
+        await new Promise((r) => setTimeout(r, 2000 * Math.pow(2, attempt)));
+      }
 
-    if (!res || !res.ok) {
-      throw new Error(`Airtable API error: ${res?.status} ${res?.statusText}`);
-    }
+      if (!res || !res.ok) {
+        console.error(`Airtable API error: ${res?.status} ${res?.statusText}`);
+        return cachedRecords ?? [];
+      }
 
-    const data = (await res.json()) as {
-      records: AirtableRecord[];
-      offset?: string;
-    };
+      const data = (await res.json()) as {
+        records: AirtableRecord[];
+        offset?: string;
+      };
 
-    records.push(...data.records);
-    offset = data.offset;
-  } while (offset);
+      records.push(...data.records);
+      offset = data.offset;
+    } while (offset);
+  } catch (err) {
+    console.error("Airtable fetch failed:", err);
+    return cachedRecords ?? [];
+  }
+
+  // Update cache
+  cachedRecords = records;
+  cacheTimestamp = Date.now();
 
   return records;
 }
