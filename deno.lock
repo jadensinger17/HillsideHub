@@ -11,6 +11,7 @@
   "workspace": {
     "packageJson": {
       "dependencies": [
+        "npm:@hookform/resolvers@^5.2.2",
         "npm:@netlify/plugin-nextjs@^5.15.8",
         "npm:@radix-ui/react-dialog@^1.1.1",
         "npm:@radix-ui/react-label@^2.1.0",
@@ -28,10 +29,12 @@
         "npm:react-dom@18",
         "npm:react-hook-form@^7.53.0",
         "npm:react@18",
+        "npm:recharts@^3.7.0",
         "npm:sonner@^1.5.0",
         "npm:tailwind-merge@^2.5.2",
         "npm:tailwindcss@^3.4.1",
         "npm:typescript@5",
+        "npm:xlsx@~0.18.5",
         "npm:zod@^3.23.8"
       ]
     }

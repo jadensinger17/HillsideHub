@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { updateResumePathAction } from "@/app/(protected)/recruitment/actions";
+import { updateResumePathAction } from "@/app/(protected)/(hub)/recruitment/actions";
 
 export function useFileUpload() {
   const [uploading, setUploading] = useState(false);

@@ -2,6 +2,7 @@ import { createClient } from "@/lib/supabase/server";
 import { AnalystReportForm } from "@/components/mid-semester/AnalystReportForm";
 import { AdminReportsTable } from "@/components/mid-semester/AdminReportsTable";
 import type { MidSemesterReport, Profile } from "@/lib/types/app.types";
+import { hasFullAccess } from "@/lib/utils/roles";
 
 export default async function MidSemesterPage() {
   const supabase = await createClient();
@@ -9,13 +10,11 @@ export default async function MidSemesterPage() {
 
   const { data: profile } = await supabase
     .from("profiles")
-    .select("role")
+    .select("role, semester")
     .eq("id", user!.id)
     .single();
 
-  const role = profile?.role;
-
-  if (role === "admin") {
+  if (hasFullAccess(profile)) {
     // Admin view: fetch all reports with analyst profiles
     const { data: reports } = await supabase
       .from("mid_semester_reports")

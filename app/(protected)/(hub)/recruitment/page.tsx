@@ -1,6 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { RecruitmentTabs } from "@/components/recruitment/RecruitmentTabs";
 import type { Applicant, InterviewRubric } from "@/lib/types/app.types";
+import { RUBRIC_TEMPLATE } from "@/lib/utils/rubricTemplate";
 
 export default async function RecruitmentPage() {
   const supabase = await createClient();
@@ -20,12 +21,41 @@ export default async function RecruitmentPage() {
 
   // Fetch rubrics for interview applicants
   const interviewIds = interviewApplicants.map((a) => a.id);
-  const { data: rubrics } = interviewIds.length
+  let { data: rubrics } = interviewIds.length
     ? await supabase
         .from("interview_rubrics")
         .select("*")
         .in("applicant_id", interviewIds)
     : { data: [] };
+
+  // Backfill: create or fix rubric records for interview applicants missing a proper template
+  if (interviewIds.length) {
+    const needsTemplate = interviewIds.filter((id) => {
+      const rubric = (rubrics ?? []).find((r) => r.applicant_id === id);
+      if (!rubric) return true;
+      const t = rubric.template as { sections?: unknown[] } | null;
+      return !t || !Array.isArray(t?.sections) || t.sections.length === 0;
+    });
+    if (needsTemplate.length) {
+      await supabase.from("interview_rubrics").upsert(
+        needsTemplate.map((applicant_id) => {
+          const existing = (rubrics ?? []).find((r) => r.applicant_id === applicant_id);
+          return {
+            applicant_id,
+            template: RUBRIC_TEMPLATE,
+            responses: existing?.responses ?? {},
+            is_complete: existing?.is_complete ?? false,
+          };
+        }),
+        { onConflict: "applicant_id" }
+      );
+      const { data: refreshed } = await supabase
+        .from("interview_rubrics")
+        .select("*")
+        .in("applicant_id", interviewIds);
+      rubrics = refreshed;
+    }
+  }
 
   return (
     <div>

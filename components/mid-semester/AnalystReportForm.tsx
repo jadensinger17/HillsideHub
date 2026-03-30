@@ -3,7 +3,7 @@
 import { useState, useTransition } from "react";
 import { Button } from "@/components/ui/Button";
 import { LoadingSpinner } from "@/components/ui/LoadingSpinner";
-import { submitMidSemesterReport } from "@/app/(protected)/mid-semester/actions";
+import { submitMidSemesterReport } from "@/app/(protected)/(hub)/mid-semester/actions";
 import type { MidSemesterReport } from "@/lib/types/app.types";
 import { toast } from "sonner";
 

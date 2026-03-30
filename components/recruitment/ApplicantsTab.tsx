@@ -2,8 +2,9 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { ApplicantDetailPanel } from "@/components/recruitment/ApplicantDetailPanel";
-import { updateDecision } from "@/app/(protected)/recruitment/actions";
+import { AddApplicantModal } from "@/components/recruitment/AddApplicantModal";
+import { updateDecision } from "@/app/(protected)/(hub)/recruitment/actions";
+import { downloadExcel } from "@/lib/utils/export";
 import type { Applicant, ApplicantDecision } from "@/lib/types/app.types";
 
 interface Props {
@@ -86,12 +87,12 @@ function SortIcon({ col, current, dir }: { col: SortKey; current: SortKey | null
 }
 
 export function ApplicantsTab({ applicants }: Props) {
-  const [selected, setSelected] = useState<Applicant | null>(null);
-  const [resumeUrl, setResumeUrl] = useState<string | null>(null);
+  const [editApplicant, setEditApplicant] = useState<Applicant | null>(null);
   const [search, setSearch] = useState("");
   const [decisionFilter, setDecisionFilter] = useState("all");
   const [sortKey, setSortKey] = useState<SortKey | null>(null);
   const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
+  const [addOpen, setAddOpen] = useState(false);
 
   function handleSort(key: SortKey) {
     if (sortKey === key) {
@@ -120,19 +121,24 @@ export function ApplicantsTab({ applicants }: Props) {
       })
     : filtered;
 
-  async function handleRowClick(applicant: Applicant) {
-    setSelected(applicant);
-    if (applicant.resume_path) {
-      try {
-        const res = await fetch(`/api/resume-url?path=${encodeURIComponent(applicant.resume_path)}`);
-        const data = await res.json();
-        setResumeUrl(data.url ?? null);
-      } catch {
-        setResumeUrl(null);
-      }
-    } else {
-      setResumeUrl(null);
-    }
+  function handleExport() {
+    const headers = ["Name", "Email", "GPA", "Major", "Expected Graduation", "Vertical", "LinkedIn", "Decision", "Status"];
+    const rows = sorted.map((a) => [
+      a.name,
+      a.email ?? "",
+      a.gpa != null && a.gpa > 0 ? a.gpa.toFixed(2) : "",
+      a.major ?? "",
+      a.expected_graduation ?? "",
+      a.vertical_interest ?? "",
+      a.linkedin_url ?? "",
+      a.decision ?? "",
+      a.status,
+    ]);
+    downloadExcel(headers, rows, "applicants.xlsx");
+  }
+
+  function handleRowClick(applicant: Applicant) {
+    setEditApplicant(applicant);
   }
 
   return (
@@ -178,6 +184,26 @@ export function ApplicantsTab({ applicants }: Props) {
         <span className="ml-auto text-sm text-gray-500 self-center">
           {filtered.length} of {applicants.length} applicants
         </span>
+
+        <button
+          onClick={handleExport}
+          className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-gray-600 hover:text-gray-900 hover:bg-gray-200 rounded-lg transition-colors"
+        >
+          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+          </svg>
+          Export CSV
+        </button>
+
+        <button
+          onClick={() => setAddOpen(true)}
+          className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-white bg-brand-600 hover:bg-brand-700 rounded-lg transition-colors"
+        >
+          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+          </svg>
+          Add Applicant
+        </button>
       </div>
 
       <div className="overflow-x-auto rounded-xl border border-gray-200">
@@ -263,13 +289,11 @@ export function ApplicantsTab({ applicants }: Props) {
         </table>
       </div>
 
-      {selected && (
-        <ApplicantDetailPanel
-          applicant={selected}
-          resumeSignedUrl={resumeUrl}
-          onClose={() => setSelected(null)}
-        />
-      )}
+      <AddApplicantModal
+        open={addOpen || !!editApplicant}
+        onClose={() => { setAddOpen(false); setEditApplicant(null); }}
+        applicant={editApplicant}
+      />
     </div>
   );
 }

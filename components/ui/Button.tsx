@@ -16,16 +16,27 @@ export function Button({
   return (
     <button
       className={cn(
-        "inline-flex items-center justify-center font-medium rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed",
+        "inline-flex items-center justify-center font-medium rounded-lg",
+        "transition-all duration-150 ease-out",
+        "disabled:opacity-40 disabled:cursor-not-allowed disabled:transform-none",
+        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-1",
         {
-          "bg-brand-500 hover:bg-brand-600 text-white": variant === "primary",
-          "bg-white hover:bg-gray-50 text-gray-700 border border-gray-300": variant === "secondary",
-          "bg-red-600 hover:bg-red-700 text-white": variant === "danger",
-          "hover:bg-gray-100 text-gray-700": variant === "ghost",
+          // Primary — navy shadow tinted to brand
+          "bg-brand-500 hover:bg-brand-600 active:bg-brand-700 text-white shadow-[0_1px_3px_rgba(0,119,181,0.3)] hover:shadow-[0_2px_8px_rgba(0,119,181,0.35)] focus-visible:ring-brand-500":
+            variant === "primary",
+          // Secondary — clean bordered
+          "bg-white hover:bg-surface-subtle active:bg-surface-muted text-gray-700 border border-surface-border shadow-card hover:shadow-card-hover focus-visible:ring-gray-400":
+            variant === "secondary",
+          // Danger
+          "bg-red-500 hover:bg-red-600 active:bg-red-700 text-white shadow-[0_1px_3px_rgba(239,68,68,0.25)] focus-visible:ring-red-500":
+            variant === "danger",
+          // Ghost — no background until hover
+          "hover:bg-surface-muted active:bg-surface-border text-gray-600 hover:text-gray-900 focus-visible:ring-gray-400":
+            variant === "ghost",
         },
         {
-          "px-3 py-1.5 text-xs": size === "sm",
-          "px-4 py-2 text-sm": size === "md",
+          "px-3 py-1.5 text-xs gap-1.5": size === "sm",
+          "px-4 py-2 text-sm gap-2":     size === "md",
         },
         className
       )}

@@ -1,19 +1,14 @@
 "use client";
 
-import { useEffect, useState, useMemo, useTransition } from "react";
-import { useRouter } from "next/navigation";
+import { useEffect, useState, useMemo } from "react";
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip, Cell, ResponsiveContainer,
-  PieChart, Pie, Legend,
+  PieChart, Pie, Legend, ReferenceLine,
 } from "recharts";
-import { ApplicantDetailPanel } from "@/components/recruitment/ApplicantDetailPanel";
-import { acceptApplicant, rejectApplicant } from "@/app/(protected)/recruitment/actions";
-import { toast } from "sonner";
 import type { Applicant, InterviewRubric } from "@/lib/types/app.types";
 
 interface Props {
   applicants: Applicant[];
-  interviewApplicants: Applicant[];
   rubrics: InterviewRubric[];
 }
 
@@ -43,6 +38,31 @@ const GPA_RANGES = [
   { label: "3.6–3.8",  min: 3.6, max: 3.8  },
   { label: "3.8–4.0",  min: 3.8, max: 4.01 },
 ];
+
+// ─── Rubric score keys ────────────────────────────────────────────────────────
+const BEHAVIORAL_KEYS = ["b1","b2","b3","b4","b5","b6","b7","b8","b9"];
+const TECHNICAL_KEYS  = ["t1a","t1b","t2","t3","t4","t5","qs1","qs2","qs3"];
+
+function sumKeys(responses: Record<string, unknown>, keys: string[]) {
+  return keys.reduce((acc, k) => acc + (typeof responses[k] === "number" ? (responses[k] as number) : 0), 0);
+}
+
+// ─── Histogram builder ────────────────────────────────────────────────────────
+function buildHistogram(scores: number[], maxScore: number, binWidth: number) {
+  if (scores.length === 0) return { bins: [], mean: 0 };
+  const mean = scores.reduce((a, b) => a + b, 0) / scores.length;
+  const binCount = Math.ceil(maxScore / binWidth);
+  const bins = Array.from({ length: binCount }, (_, i) => {
+    const lo = i * binWidth;
+    const hi = lo + binWidth;
+    return {
+      label: `${lo}–${hi}`,
+      midpoint: lo + binWidth / 2,
+      count: scores.filter((s) => s >= lo && s < hi).length,
+    };
+  });
+  return { bins, mean };
+}
 
 // ─── Shared tooltip ───────────────────────────────────────────────────────────
 function ChartTooltip({ active, payload, label }: {
@@ -82,94 +102,123 @@ function ChartCard({ title, children }: { title: string; children: React.ReactNo
   );
 }
 
-// ─── Accept / Reject buttons ──────────────────────────────────────────────────
-function ActionButtons({ applicant }: { applicant: Applicant }) {
-  const router = useRouter();
-  const [isPending, startTransition] = useTransition();
+// ─── Score bar chart ──────────────────────────────────────────────────────────
+function ScoreBarChart({
+  title, scores, maxScore, binWidth, color,
+}: {
+  title: string;
+  scores: number[];
+  maxScore: number;
+  binWidth: number;
+  color: string;
+}) {
+  const { bins, mean } = useMemo(
+    () => buildHistogram(scores, maxScore, binWidth),
+    [scores, maxScore, binWidth]
+  );
 
-  function handleAccept() {
-    startTransition(async () => {
-      try {
-        await acceptApplicant(applicant.id);
-        toast.success(`${applicant.name} accepted`);
-        router.refresh();
-      } catch {
-        toast.error("Failed to accept applicant");
-      }
-    });
+  if (scores.length === 0) {
+    return (
+      <ChartCard title={title}>
+        <div className="h-[210px] flex items-center justify-center text-sm text-gray-400">
+          No scored rubrics yet
+        </div>
+      </ChartCard>
+    );
   }
 
-  function handleReject() {
-    startTransition(async () => {
-      try {
-        await rejectApplicant(applicant.id);
-        toast.success(`${applicant.name} rejected`);
-        router.refresh();
-      } catch {
-        toast.error("Failed to reject applicant");
-      }
-    });
-  }
+  // Find which bin contains the mean to highlight it
+  const meanBinIdx = bins.findIndex((b) => mean < b.midpoint + binWidth / 2 && mean >= b.midpoint - binWidth / 2);
 
   return (
-    <div className="flex gap-2" onClick={(e) => e.stopPropagation()}>
-      <button
-        onClick={handleAccept}
-        disabled={isPending}
-        className="text-xs px-3 py-1 rounded-md bg-green-50 border border-green-200 text-green-700 hover:bg-green-100 transition-colors disabled:opacity-50 font-medium"
-      >
-        Accept
-      </button>
-      <button
-        onClick={handleReject}
-        disabled={isPending}
-        className="text-xs px-3 py-1 rounded-md bg-red-50 border border-red-200 text-red-700 hover:bg-red-100 transition-colors disabled:opacity-50 font-medium"
-      >
-        Reject
-      </button>
-    </div>
+    <ChartCard title={title}>
+      <ResponsiveContainer width="100%" height={210}>
+        <BarChart data={bins} margin={{ top: 16, right: 12, left: -24, bottom: 0 }}>
+          <XAxis
+            dataKey="label"
+            tick={{ fontSize: 10, fill: "#6b7280" }}
+            interval={0}
+            angle={-30}
+            textAnchor="end"
+            height={40}
+          />
+          <YAxis allowDecimals={false} tick={{ fontSize: 11, fill: "#6b7280" }} />
+          <Tooltip
+            content={({ active, payload }) => {
+              if (!active || !payload?.length) return null;
+              const d = payload[0]?.payload as { label: string; count: number };
+              return (
+                <div className="bg-white border border-gray-200 rounded-lg px-3 py-1.5 shadow-sm text-xs text-gray-700">
+                  <span className="font-medium text-gray-900">{d.label}</span>
+                  <span className="ml-2">{d.count} {d.count === 1 ? "candidate" : "candidates"}</span>
+                </div>
+              );
+            }}
+          />
+          <Bar dataKey="count" radius={[4, 4, 0, 0]}>
+            {bins.map((_, i) => (
+              <Cell
+                key={i}
+                fill={color}
+                fillOpacity={i === meanBinIdx ? 1 : 0.55}
+              />
+            ))}
+          </Bar>
+          <ReferenceLine
+            x={bins[meanBinIdx]?.label}
+            stroke={color}
+            strokeWidth={2}
+            strokeDasharray="5 3"
+            label={{
+              value: `avg ${mean.toFixed(1)}`,
+              position: "top",
+              fontSize: 11,
+              fill: color,
+              fontWeight: 700,
+            }}
+          />
+        </BarChart>
+      </ResponsiveContainer>
+      <div className="flex justify-center gap-6 mt-0.5 text-xs text-gray-400">
+        <span>Mean <span className="font-medium text-gray-700">{mean.toFixed(1)}</span></span>
+        <span>Max <span className="font-medium text-gray-700">{maxScore}</span></span>
+        <span>n <span className="font-medium text-gray-700">{scores.length}</span></span>
+      </div>
+    </ChartCard>
   );
 }
 
 // ─── Main component ───────────────────────────────────────────────────────────
-export function AIAnalysisTab({ applicants, interviewApplicants, rubrics }: Props) {
+export function AIAnalysisTab({ applicants, rubrics }: Props) {
   const [mounted, setMounted] = useState(false);
   useEffect(() => setMounted(true), []);
 
-  const [selected, setSelected] = useState<Applicant | null>(null);
-  const [resumeUrl, setResumeUrl] = useState<string | null>(null);
-
-  async function handleViewRubric(applicant: Applicant) {
-    setSelected(applicant);
-    if (applicant.resume_path) {
-      try {
-        const res = await fetch(`/api/resume-url?path=${encodeURIComponent(applicant.resume_path)}`);
-        const data = await res.json();
-        setResumeUrl(data.url ?? null);
-      } catch {
-        setResumeUrl(null);
+  // ── Rubric score arrays ────────────────────────────────────────────────────
+  const { behavioralScores, technicalScores, overallScores } = useMemo(() => {
+    const behavioral: number[] = [];
+    const technical:  number[] = [];
+    const overall:    number[] = [];
+    for (const r of rubrics) {
+      const res = (r.responses ?? {}) as Record<string, unknown>;
+      const b = sumKeys(res, BEHAVIORAL_KEYS);
+      const t = sumKeys(res, TECHNICAL_KEYS);
+      if (b + t > 0) {
+        behavioral.push(b);
+        technical.push(t);
+        overall.push(b + t);
       }
-    } else {
-      setResumeUrl(null);
     }
-  }
-
-  const rubricMap = useMemo(() => {
-    const map: Record<string, InterviewRubric> = {};
-    for (const r of rubrics) map[r.applicant_id] = r;
-    return map;
+    return { behavioralScores: behavioral, technicalScores: technical, overallScores: overall };
   }, [rubrics]);
 
+  // ── Applicant stats ────────────────────────────────────────────────────────
   const data = useMemo(() => {
     const withGpa = applicants.filter((a) => a.gpa != null && a.gpa > 0);
-
     const avgGpa = withGpa.length
       ? withGpa.reduce((s, a) => s + (a.gpa ?? 0), 0) / withGpa.length
       : 0;
     const interviewCount = applicants.filter((a) => a.status === "interview").length;
     const acceptedCount  = applicants.filter((a) => a.status === "accepted").length;
-    const rejectedCount  = applicants.filter((a) => a.status === "rejected").length;
-    const withResume     = applicants.filter((a) => a.resume_path).length;
 
     const gpaData = GPA_RANGES.map(({ label, min, max }) => ({
       range: label,
@@ -202,10 +251,7 @@ export function AIAnalysisTab({ applicants, interviewApplicants, rubrics }: Prop
       { name: "Undecided", value: applicants.filter((a) => a.decision === null).length },
     ].filter((d) => d.value > 0);
 
-    return {
-      avgGpa, interviewCount, acceptedCount, rejectedCount, withResume,
-      gpaData, gradData, vertData, decisionData,
-    };
+    return { avgGpa, interviewCount, acceptedCount, gpaData, gradData, vertData, decisionData };
   }, [applicants]);
 
   const total = applicants.length;
@@ -214,12 +260,49 @@ export function AIAnalysisTab({ applicants, interviewApplicants, rubrics }: Prop
   return (
     <div className="space-y-6">
       {/* ── Summary cards ────────────────────────────────────────────────── */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         <StatCard label="Total Applicants" value={total} />
-        <StatCard label="Avg GPA" value={data.avgGpa.toFixed(2)} sub="among applicants with GPA on file" />
+        <StatCard label="Avg GPA" value={data.avgGpa.toFixed(2)} sub="applicants with GPA on file" />
         <StatCard label="In Interview" value={data.interviewCount} sub={`${interviewRate}% of total`} />
         <StatCard label="Accepted" value={data.acceptedCount} />
-        <StatCard label="Resumes Filed" value={data.withResume} sub={`${total ? ((data.withResume / total) * 100).toFixed(0) : 0}% of total`} />
+      </div>
+
+      {/* ── Rubric score bar charts ───────────────────────────────────────── */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+        {mounted ? (
+          <>
+            <ScoreBarChart
+              title="Behavioral Score Distribution"
+              scores={behavioralScores}
+              maxScore={45}
+              binWidth={5}
+              color="#6366f1"
+            />
+            <ScoreBarChart
+              title="Technical Score Distribution"
+              scores={technicalScores}
+              maxScore={45}
+              binWidth={5}
+              color="#0891b2"
+            />
+            <ScoreBarChart
+              title="Overall Score Distribution"
+              scores={overallScores}
+              maxScore={90}
+              binWidth={10}
+              color="#10b981"
+            />
+          </>
+        ) : (
+          <>
+            {[0, 1, 2].map((i) => (
+              <div key={i} className="bg-white border border-gray-200 rounded-xl p-5">
+                <div className="h-4 w-40 bg-gray-100 rounded mb-4 animate-pulse" />
+                <div className="h-[210px] bg-gray-50 rounded-lg animate-pulse" />
+              </div>
+            ))}
+          </>
+        )}
       </div>
 
       {/* ── Row 1: GPA distribution + Graduating class ────────────────────── */}
@@ -321,80 +404,6 @@ export function AIAnalysisTab({ applicants, interviewApplicants, rubrics }: Prop
           )}
         </ChartCard>
       </div>
-
-      {/* ── Interview candidates table ─────────────────────────────────────── */}
-      <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
-        <div className="px-5 py-4 border-b border-gray-100">
-          <h3 className="text-sm font-semibold text-gray-700">
-            Interview Candidates
-            <span className="ml-2 text-xs font-normal text-gray-400">
-              {interviewApplicants.length} {interviewApplicants.length === 1 ? "candidate" : "candidates"}
-            </span>
-          </h3>
-        </div>
-
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="bg-gray-50 border-b border-gray-200">
-                <th className="text-left px-4 py-3 font-medium text-gray-600">Name</th>
-                <th className="text-left px-4 py-3 font-medium text-gray-600">GPA</th>
-                <th className="text-left px-4 py-3 font-medium text-gray-600">Major</th>
-                <th className="text-left px-4 py-3 font-medium text-gray-600">Graduation</th>
-                <th className="text-left px-4 py-3 font-medium text-gray-600">Vertical</th>
-                <th className="text-left px-4 py-3 font-medium text-gray-600">Rubric</th>
-                <th className="text-left px-4 py-3 font-medium text-gray-600">Actions</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-100">
-              {interviewApplicants.length === 0 && (
-                <tr>
-                  <td colSpan={7} className="text-center py-12 text-gray-400">
-                    No candidates in interviews yet
-                  </td>
-                </tr>
-              )}
-              {interviewApplicants.map((a) => {
-                const rubric = rubricMap[a.id];
-                return (
-                  <tr key={a.id} className="hover:bg-gray-50 transition-colors">
-                    <td className="px-4 py-3 font-medium text-gray-900">{a.name}</td>
-                    <td className="px-4 py-3 text-gray-700 tabular-nums">
-                      {a.gpa != null ? a.gpa.toFixed(2) : "—"}
-                    </td>
-                    <td className="px-4 py-3 text-gray-600">{a.major ?? "—"}</td>
-                    <td className="px-4 py-3 text-gray-600">{a.expected_graduation ?? "—"}</td>
-                    <td className="px-4 py-3 text-gray-600">{a.vertical_interest ?? "—"}</td>
-                    <td className="px-4 py-3">
-                      {rubric ? (
-                        <button
-                          onClick={() => handleViewRubric(a)}
-                          className="text-xs text-indigo-600 hover:text-indigo-800 hover:underline font-medium"
-                        >
-                          {rubric.is_complete ? "View Rubric ✓" : "View Rubric"}
-                        </button>
-                      ) : (
-                        <span className="text-gray-400 text-xs">—</span>
-                      )}
-                    </td>
-                    <td className="px-4 py-3">
-                      <ActionButtons applicant={a} />
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
-      </div>
-
-      {selected && (
-        <ApplicantDetailPanel
-          applicant={selected}
-          resumeSignedUrl={resumeUrl}
-          onClose={() => setSelected(null)}
-        />
-      )}
     </div>
   );
 }

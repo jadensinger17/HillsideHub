@@ -6,8 +6,16 @@ import { useUser } from "@/components/layout/RoleProvider";
 import { createClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils/cn";
 
+interface NavLink {
+  href: string;
+  label: string;
+  adminOnly: boolean;
+  requiredVerticals?: string[];
+}
+
 export default function Navbar() {
-  const { role, fullName } = useUser();
+  const { role, fullName, verticals, semester } = useUser();
+  const isFullAccess = role === "admin" || semester === "3rd";
   const pathname = usePathname();
   const router = useRouter();
   const supabase = createClient();
@@ -18,33 +26,48 @@ export default function Navbar() {
     router.refresh();
   }
 
-  const navLinks = [
-    { href: "/recruitment", label: "Recruitment", adminOnly: true },
-    { href: "/mid-semester", label: "Mid-Semester", adminOnly: false },
+  const navLinks: NavLink[] = [
+    { href: "/recruitment",  label: "Recruitment",        adminOnly: false },
+    { href: "/mid-semester", label: "Mid-Semester",       adminOnly: false },
+    { href: "/paperboy",     label: "Paperboy",           adminOnly: false, requiredVerticals: ["consumer_products"] },
+    { href: "/pipeline",     label: "Deal Pipeline",      adminOnly: false },
+    { href: "/admin",        label: "Admin",              adminOnly: true },
   ];
 
+  const firstName = fullName?.split(" ")[0];
+
   return (
-    <header className="sticky top-0 z-50 bg-white border-b border-gray-200">
+    <header className="sticky top-0 z-50 bg-navy-900 border-b border-white/[0.08]">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex items-center justify-between h-16">
-          <div className="flex items-center gap-8">
-            <Link href="/" className="font-bold text-gray-900 text-lg">
-              Hillside Hub
+        <div className="flex items-center justify-between h-14">
+
+          {/* Logo + nav */}
+          <div className="flex items-center gap-6">
+            <Link href="/" className="flex items-center gap-2 shrink-0">
+              <span className="text-sm font-semibold text-white tracking-tight">
+                Hillside Hub
+              </span>
             </Link>
 
-            <nav className="flex items-center gap-1">
+            <nav className="flex items-center gap-0.5">
               {navLinks.map((link) => {
-                if (link.adminOnly && role !== "admin") return null;
+                if (link.adminOnly && !isFullAccess) return null;
+                if (
+                  link.requiredVerticals &&
+                  !isFullAccess &&
+                  !link.requiredVerticals.some((v) => verticals.includes(v))
+                ) return null;
+
                 const active = pathname.startsWith(link.href);
                 return (
                   <Link
                     key={link.href}
                     href={link.href}
                     className={cn(
-                      "px-3 py-2 rounded-md text-sm font-medium transition-colors",
+                      "px-3 py-1.5 rounded-md text-[13px] font-medium transition-all",
                       active
-                        ? "bg-brand-50 text-brand-600"
-                        : "text-gray-600 hover:text-gray-900 hover:bg-gray-100"
+                        ? "bg-white/10 text-white"
+                        : "text-white/55 hover:text-white/90 hover:bg-white/[0.06]"
                     )}
                   >
                     {link.label}
@@ -54,18 +77,22 @@ export default function Navbar() {
             </nav>
           </div>
 
+          {/* User */}
           <div className="flex items-center gap-3">
-            <span className="text-sm text-gray-500">{fullName}</span>
-            <span className="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full capitalize">
+            {firstName && (
+              <span className="text-[13px] text-white/50 hidden sm:block">{firstName}</span>
+            )}
+            <span className="text-[11px] font-medium bg-white/10 text-white/60 px-2 py-0.5 rounded capitalize">
               {role}
             </span>
             <button
               onClick={handleLogout}
-              className="text-sm text-gray-500 hover:text-gray-900 transition-colors"
+              className="text-[13px] text-white/40 hover:text-white/80 transition-colors"
             >
               Sign out
             </button>
           </div>
+
         </div>
       </div>
     </header>

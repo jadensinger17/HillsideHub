@@ -1,6 +1,7 @@
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { NextResponse } from "next/server";
+import { hasFullAccess } from "@/lib/utils/roles";
 
 // GET /api/resume-url?path=resumes/...
 // Returns a short-lived signed download URL for a resume
@@ -12,7 +13,7 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: "Missing path" }, { status: 400 });
   }
 
-  // Verify admin
+  // Verify admin or 3rd-semester analyst
   const supabase = await createClient();
   const { data: { user }, error: authError } = await supabase.auth.getUser();
 
@@ -22,11 +23,11 @@ export async function GET(request: Request) {
 
   const { data: profile } = await supabase
     .from("profiles")
-    .select("role")
+    .select("role, semester")
     .eq("id", user.id)
     .single();
 
-  if (profile?.role !== "admin") {
+  if (!hasFullAccess(profile)) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 

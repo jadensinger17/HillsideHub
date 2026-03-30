@@ -8,6 +8,12 @@ export function isAnalyst(role: string | null | undefined): role is "analyst" {
   return role === "analyst";
 }
 
+// 3rd-semester analysts get full admin-level access everywhere
+export function hasFullAccess(profile: { role?: string | null; semester?: string | null } | null | undefined): boolean {
+  if (!profile) return false;
+  return profile.role === "admin" || profile.semester === "3rd";
+}
+
 export async function getRole(
   supabase: Awaited<ReturnType<typeof import("@/lib/supabase/server").createClient>>
 ): Promise<Role | null> {

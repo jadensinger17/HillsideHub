@@ -14,6 +14,7 @@ export function statusLabel(status: string): string {
   const labels: Record<string, string> = {
     pending: "Pending",
     interview: "Interview",
+    deliberation: "Deliberation",
     accepted: "Accepted",
     rejected: "Rejected",
   };
@@ -24,6 +25,7 @@ export function statusColor(status: string): string {
   const colors: Record<string, string> = {
     pending: "bg-yellow-100 text-yellow-800",
     interview: "bg-blue-100 text-blue-800",
+    deliberation: "bg-purple-100 text-purple-800",
     accepted: "bg-green-100 text-green-800",
     rejected: "bg-red-100 text-red-800",
   };

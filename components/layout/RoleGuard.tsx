@@ -10,7 +10,8 @@ interface RoleGuardProps {
 }
 
 export function RoleGuard({ allowedRoles, children, fallback = null }: RoleGuardProps) {
-  const { role } = useUser();
-  if (!allowedRoles.includes(role)) return <>{fallback}</>;
+  const { role, semester } = useUser();
+  const isFullAccess = semester === "3rd";
+  if (!allowedRoles.includes(role) && !isFullAccess) return <>{fallback}</>;
   return <>{children}</>;
 }

@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
 import { LoadingSpinner } from "@/components/ui/LoadingSpinner";
 import { formatDate, statusLabel, statusColor } from "@/lib/utils/format";
-import { moveToInterview } from "@/app/(protected)/recruitment/actions";
+import { moveToInterview, moveToDeliberation, acceptApplicant, rejectApplicant } from "@/app/(protected)/(hub)/recruitment/actions";
 import { useFileUpload } from "@/hooks/useFileUpload";
 import type { Applicant } from "@/lib/types/app.types";
 import { toast } from "sonner";
@@ -51,6 +51,42 @@ export function ApplicantDetailPanel({ applicant, resumeSignedUrl, onClose }: Pr
         onClose();
       } catch {
         toast.error("Failed to move applicant");
+      }
+    });
+  }
+
+  function handleMoveToDeliberation() {
+    startTransition(async () => {
+      try {
+        await moveToDeliberation(applicant.id);
+        toast.success(`${applicant.name} moved to deliberation`);
+        onClose();
+      } catch {
+        toast.error("Failed to move applicant");
+      }
+    });
+  }
+
+  function handleAccept() {
+    startTransition(async () => {
+      try {
+        await acceptApplicant(applicant.id);
+        toast.success(`${applicant.name} accepted`);
+        onClose();
+      } catch {
+        toast.error("Failed to accept applicant");
+      }
+    });
+  }
+
+  function handleReject() {
+    startTransition(async () => {
+      try {
+        await rejectApplicant(applicant.id);
+        toast.success(`${applicant.name} rejected`);
+        onClose();
+      } catch {
+        toast.error("Failed to reject applicant");
       }
     });
   }
@@ -152,9 +188,41 @@ export function ApplicantDetailPanel({ applicant, resumeSignedUrl, onClose }: Pr
         {/* Action */}
         {applicant.status === "pending" && (
           <div className="flex justify-end pt-2 border-t border-gray-100">
+            <Button onClick={handleMoveToDeliberation} disabled={isPending}>
+              {isPending ? <LoadingSpinner className="h-4 w-4 mr-2" /> : null}
+              Move to Deliberation
+            </Button>
+          </div>
+        )}
+        {applicant.status === "deliberation" && (
+          <div className="flex justify-end gap-2 pt-2 border-t border-gray-100">
+            <Button
+              onClick={handleReject}
+              disabled={isPending}
+              className="bg-red-50 text-red-700 border border-red-200 hover:bg-red-100"
+            >
+              {isPending ? <LoadingSpinner className="h-4 w-4 mr-2" /> : null}
+              Reject
+            </Button>
             <Button onClick={handleMoveToInterview} disabled={isPending}>
               {isPending ? <LoadingSpinner className="h-4 w-4 mr-2" /> : null}
               Move to Interview
+            </Button>
+          </div>
+        )}
+        {applicant.status === "interview" && (
+          <div className="flex justify-end gap-2 pt-2 border-t border-gray-100">
+            <Button
+              onClick={handleReject}
+              disabled={isPending}
+              className="bg-red-50 text-red-700 border border-red-200 hover:bg-red-100"
+            >
+              {isPending ? <LoadingSpinner className="h-4 w-4 mr-2" /> : null}
+              Reject
+            </Button>
+            <Button onClick={handleAccept} disabled={isPending}>
+              {isPending ? <LoadingSpinner className="h-4 w-4 mr-2" /> : null}
+              Accept
             </Button>
           </div>
         )}

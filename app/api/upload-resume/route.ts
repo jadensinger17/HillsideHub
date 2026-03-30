@@ -1,12 +1,13 @@
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { NextResponse } from "next/server";
+import { hasFullAccess } from "@/lib/utils/roles";
 
 // POST /api/upload-resume
 // Body: { applicantId: string, fileName: string }
 // Returns: { uploadUrl: string, path: string }
 export async function POST(request: Request) {
-  // Verify the requester is an authenticated admin
+  // Verify the requester is an authenticated admin or 3rd-semester analyst
   const supabase = await createClient();
   const { data: { user }, error: authError } = await supabase.auth.getUser();
 
@@ -16,11 +17,11 @@ export async function POST(request: Request) {
 
   const { data: profile } = await supabase
     .from("profiles")
-    .select("role")
+    .select("role, semester")
     .eq("id", user.id)
     .single();
 
-  if (profile?.role !== "admin") {
+  if (!hasFullAccess(profile)) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 

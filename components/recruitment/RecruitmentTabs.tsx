@@ -122,11 +122,7 @@ export function RecruitmentTabs({ applicants, interviewApplicants, rubrics }: Pr
       </Tabs.Content>
 
       <Tabs.Content value="ai-analysis">
-        <AIAnalysisTab
-          applicants={filteredApplicants}
-          interviewApplicants={filteredInterviewApplicants}
-          rubrics={filteredRubrics}
-        />
+        <AIAnalysisTab applicants={filteredApplicants} rubrics={filteredRubrics} />
       </Tabs.Content>
     </Tabs.Root>
   );
